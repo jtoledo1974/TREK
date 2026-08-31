@@ -314,7 +314,9 @@ export class PackingController {
     if (!added) {
       throw new HttpException({ error: 'Template not found or empty' }, 404);
     }
-    this.packing.broadcastItem(tripId, 'packing:template-applied', { items: added }, added[0], socketId);
+    if (added.length > 0) {
+      this.packing.broadcastItem(tripId, 'packing:template-applied', { items: added }, added[0], socketId);
+    }
     return { items: added, count: added.length };
   }
 

@@ -193,6 +193,53 @@ describe('applyTemplate', () => {
     expect(result).toBeNull();
   });
 
+  it('PACK-SVC-054: applying the same template twice adds no duplicates', () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const templateId = seedTemplate(user.id, ['Tent', 'Sleeping Bag']);
+
+    expect(svc.applyTemplate(trip.id, templateId)).toHaveLength(2);
+    expect(svc.applyTemplate(trip.id, templateId)).toHaveLength(0);
+    expect(testDb.prepare('SELECT COUNT(*) as count FROM packing_items WHERE trip_id = ?').get(trip.id)).toMatchObject({ count: 2 });
+  });
+
+  it('PACK-SVC-055: overlapping templates add a shared item only once', () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const camping = seedTemplate(user.id, ['Tent', 'Protector solar']);
+    const hiking = seedTemplate(user.id, ['Protector solar', 'Botas']);
+
+    expect(svc.applyTemplate(trip.id, camping)).toHaveLength(2);
+    expect(svc.applyTemplate(trip.id, hiking)).toHaveLength(1);
+    expect(testDb.prepare('SELECT name FROM packing_items WHERE trip_id = ? ORDER BY sort_order').all(trip.id)).toEqual([
+      { name: 'Tent' },
+      { name: 'Protector solar' },
+      { name: 'Botas' },
+    ]);
+  });
+
+  it('PACK-SVC-056: compares names after trimming, Unicode normalization and whitespace folding', () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    testDb.prepare('INSERT INTO packing_items (trip_id, name, category, checked, sort_order) VALUES (?, ?, ?, 0, ?)').run(
+      trip.id, 'Protector solar', 'Toiletries', 0,
+    );
+    const templateId = seedTemplate(user.id, ['  PROTECTOR   SOLAR  ']);
+
+    expect(svc.applyTemplate(trip.id, templateId)).toHaveLength(0);
+    expect(testDb.prepare('SELECT COUNT(*) as count FROM packing_items WHERE trip_id = ?').get(trip.id)).toMatchObject({ count: 1 });
+  });
+
+  it('PACK-SVC-057: keeps common and personal lists independent', () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const templateId = seedTemplate(user.id, ['Sunscreen']);
+
+    expect(svc.applyTemplate(trip.id, templateId, 'common', user.id)).toHaveLength(1);
+    expect(svc.applyTemplate(trip.id, templateId, 'personal', user.id)).toHaveLength(1);
+    expect(testDb.prepare('SELECT COUNT(*) as count FROM packing_items WHERE trip_id = ?').get(trip.id)).toMatchObject({ count: 2 });
+  });
+
   // #1565: the applied items must land in the view the user is on, not always Common.
   it('PACK-SVC-046: applies into the personal list when visibility is personal', () => {
     const { user } = createUser(testDb);

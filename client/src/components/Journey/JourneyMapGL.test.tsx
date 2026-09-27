@@ -90,15 +90,16 @@ const gl = vi.hoisted(() => {
   return { map, markers, popups, boundsList, createMarker, createPopup, createBounds }
 })
 
-const glModule = vi.hoisted(() => () => ({
-  default: {
+const glModule = vi.hoisted(() => () => {
+  const sdk = {
     accessToken: '',
     Map: vi.fn(function () { return gl.map }),
     Marker: vi.fn(function (options: { element?: HTMLElement }) { return gl.createMarker(options) }),
     Popup: vi.fn(function (options: Record<string, unknown>) { return gl.createPopup(options) }),
     LngLatBounds: vi.fn(function () { return gl.createBounds() }),
-  },
-}))
+  }
+  return { ...sdk, default: sdk }
+})
 
 vi.mock('mapbox-gl', glModule)
 vi.mock('maplibre-gl', glModule)
@@ -115,7 +116,7 @@ vi.mock('../Map/mapboxSetup', () => ({
 
 import React from 'react'
 import mapboxgl from 'mapbox-gl'
-import maplibregl from 'maplibre-gl'
+import * as maplibregl from 'maplibre-gl'
 import { render, screen, act } from '../../../tests/helpers/render'
 import { resetAllStores, seedStore } from '../../../tests/helpers/store'
 import { useSettingsStore } from '../../store/settingsStore'

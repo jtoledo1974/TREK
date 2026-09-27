@@ -40,6 +40,15 @@ interface ImportItem {
   is_private?: boolean;
 }
 
+/**
+ * Return the stable comparison key used when adding template items.
+ * Keep this deliberately conservative: semantic aliases belong in the source
+ * templates/import mapping, not in the packing service.
+ */
+export function canonicalPackingItemName(name: string): string {
+  return name.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 const BAG_COLORS = ['#6366f1', '#ec4899', '#f97316', '#10b981', '#06b6d4', '#8b5cf6', '#ef4444', '#f59e0b', '#3b82f6', '#84cc16', '#d946ef', '#14b8a6', '#f43f5e', '#a855f7', '#eab308', '#64748b'];
 
 /**
@@ -685,18 +694,33 @@ export class PackingService {
 
     if (templateItems.length === 0) return null;
 
-    const maxOrder = this.db.get<{ max: number | null }>('SELECT MAX(sort_order) as max FROM packing_items WHERE trip_id = ?', tripId)!;
-    let sortOrder = (maxOrder.max !== null ? maxOrder.max : -1) + 1;
+    // Common and personal lists are separate namespaces. A personal item owned
+    // by another user must not prevent this user from adding the same item to
+    // their own list, and a common item must not suppress a personal one.
     const isPrivate = ownerId != null ? this.visibilityToPrivate(visibility) : 0;
     const owner = isPrivate ? ownerId! : null;
+    const existingItems = this.db.all<{ name: string }>(
+      isPrivate
+        ? 'SELECT name FROM packing_items WHERE trip_id = ? AND is_private = 1 AND owner_id = ?'
+        : 'SELECT name FROM packing_items WHERE trip_id = ? AND is_private = 0',
+      ...(isPrivate ? [tripId, owner] : [tripId]),
+    );
+    const existing = new Set(existingItems.map(item => canonicalPackingItemName(item.name)));
+
+    const maxOrder = this.db.get<{ max: number | null }>('SELECT MAX(sort_order) as max FROM packing_items WHERE trip_id = ?', tripId)!;
+    let sortOrder = (maxOrder.max !== null ? maxOrder.max : -1) + 1;
 
     const insert = this.db.prepare('INSERT INTO packing_items (trip_id, name, checked, category, sort_order, is_private, owner_id, updated_at) VALUES (?, ?, 0, ?, ?, ?, ?, CURRENT_TIMESTAMP)');
     const added: any[] = [];
     this.db.transaction(() => {
       for (const ti of templateItems) {
+        const key = canonicalPackingItemName(ti.name);
+        if (existing.has(key)) continue;
+
         const result = insert.run(tripId, ti.name, ti.category, sortOrder++, isPrivate, owner);
         const item = this.db.get('SELECT * FROM packing_items WHERE id = ?', result.lastInsertRowid);
         added.push(item);
+        existing.add(key);
       }
     });
 

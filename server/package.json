@@ -76,9 +76,9 @@
     "@hono/node-server": "^1.19.13",
     "picomatch": "^4.0.4",
     "ip-address": "^10.1.1",
-    "multer": "^2.3.0",
+    "multer": "2.4.0",
     "ws": "^8.21.0",
-    "qs": "^6.15.2",
+    "qs": "6.16.0",
     "file-type": "^21.3.4"
   },
   "devDependencies": {

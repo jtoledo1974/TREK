@@ -15,7 +15,7 @@ const { mapboxSet, maplibreSet } = vi.hoisted(() => ({
 }));
 
 vi.mock('mapbox-gl', () => ({ default: { setRTLTextPlugin: mapboxSet } }));
-vi.mock('maplibre-gl', () => ({ default: { setRTLTextPlugin: maplibreSet } }));
+vi.mock('maplibre-gl', () => ({ setRTLTextPlugin: maplibreSet }));
 vi.mock('mapbox-gl/dist/mapbox-gl.css', () => ({}));
 vi.mock('maplibre-gl/dist/maplibre-gl.css', () => ({}));
 vi.mock('@mapbox/mapbox-gl-rtl-text/dist/mapbox-gl-rtl-text.js?url', () => ({ default: '/assets/rtl-plugin.js' }));
@@ -41,7 +41,7 @@ describe('the GL engines register the RTL text plugin (#2235)', () => {
     await import('./maplibre');
 
     expect(maplibreSet).toHaveBeenCalledTimes(1);
-    // MapLibre 5 takes (url, lazy) and returns a promise, which is the reason
+    // MapLibre takes (url, lazy) and returns a promise, which is the reason
     // the call stays with each engine instead of going through one wrapper.
     expect(maplibreSet).toHaveBeenCalledWith(expect.stringContaining('rtl'), true);
   });
